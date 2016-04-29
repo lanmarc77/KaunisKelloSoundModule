@@ -47,6 +47,9 @@ unsigned int getModuleAction(){
 // DREQ should be an Int pin, see http://arduino.cc/en/Reference/attachInterrupt
 #define DREQ 3       // VS1053 Data request, ideally an Interrupt pin
 
+
+#define BREAKOUT_SDCD 2
+#define BREAKOUT_5VON 5
 Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(BREAKOUT_RESET, BREAKOUT_CS, BREAKOUT_DCS, DREQ, CARDCS);
 
 unsigned char TWIByteCounter=0;
@@ -248,6 +251,7 @@ ISR(TIMER2_COMPA_vect){
 
 void setup() {
     unsigned char i=0;
+
     TWI_Slave_Init();
 
     TCCR2A=2; //CTC mode
@@ -261,47 +265,39 @@ void setup() {
     pinMode(BREAKOUT_CS,OUTPUT);
     digitalWrite(BREAKOUT_CS,HIGH);
 
+    TCCR0A&=~0xF0; //give D5 back stupid timer lib
+    pinMode(BREAKOUT_5VON,OUTPUT);
+    digitalWrite(BREAKOUT_5VON,LOW);
+
+
+    pinMode(BREAKOUT_SDCD,INPUT);
 
     Serial.begin(9600);
     Serial.print("Starting...");
 
   // initialise the music player
     if (! musicPlayer.begin()) { // initialise the music player
-	//Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
-	//while (1);
-	intState&=~0x01;
+    	intState&=~0x01;
     }else{
-	Serial.println("VS1053 ok");
-	intState|=0x01;
+    	Serial.println("VS1053 ok");
+    	intState|=0x01;
     }
-
     while(!SD.begin(CARDCS)){
-	musicPlayer.sineTest(0x44, 500);
+	    musicPlayer.sineTest(0x44, 500);
     }
     Serial.println("SD card ok");
     intState|=0x02;
 
-/*    if (!SD.begin(CARDCS)) {
-	//Serial.println(F("SD failed, or not present"));
-	//while (1);  // don't do anything more
-	intState&=~0x02;
-    }else{
-	Serial.println("SD card ok");
-	intState|=0x02;
-    }*/
-
     wdt_enable(WDTO_2S);
-
     musicPlayer.setVolume(0,0);
 
     if (! musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT)){
-	intState&=~0x04;
-	//Serial.println(F("DREQ pin is not an interrupt pin"));
+    	intState&=~0x04;
+	    //Serial.println(F("DREQ pin is not an interrupt pin"));
     }else{
-	Serial.println("VS1053 interrupt ok");
-	intState|=0x04;
+    	Serial.println("VS1053 interrupt ok");
+    	intState|=0x04;
     }
-
 }
 
 void Number2PaddedString(unsigned char nr,char *c){
@@ -424,7 +420,8 @@ void loop() {
     set_sleep_mode(SLEEP_MODE_IDLE);
     //Serial.println("Starting.");
     while(1){
-	unsigned int action=getModuleAction();
+
+    unsigned int action=getModuleAction();
 	sleep_mode();
 	//SD.begin(CARDCS);
 	switch(action&0xFF){
