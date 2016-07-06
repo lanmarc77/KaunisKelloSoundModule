@@ -38,19 +38,34 @@ unsigned int getModuleAction(){
     return i;
 }
 
+#define BREAKOUT
+
+#ifdef BREAKOUT
 // These are the pins used for the breakout example
-#define BREAKOUT_RESET  9      // VS1053 reset pin (output)
-#define BREAKOUT_CS     10     // VS1053 chip select pin (output)
-#define BREAKOUT_DCS    8      // VS1053 Data/command select pin (output)
+#define SIG_RESET  9      // VS1053 reset pin (output)
+#define SIG_CS     10     // VS1053 chip select pin (output)
+#define SIG_DCS    8      // VS1053 Data/command select pin (output)
 // These are common pins between breakout and shield
-#define CARDCS 4     // Card chip select pin
+#define SIG_CARDCS 4     // Card chip select pin
 // DREQ should be an Int pin, see http://arduino.cc/en/Reference/attachInterrupt
-#define DREQ 3       // VS1053 Data request, ideally an Interrupt pin
+#define SIG_DREQ 3       // VS1053 Data request, ideally an Interrupt pin
+#define SIG_SDCD 2
+#define SIG_5VON 5
+#endif
 
+#ifdef SHIELD
+#define SIG_DREQ 2       // VS1053 Data request, ideally an Interrupt pin
+#define SIG_CS     6      // VS1053 chip select pin (output)
+#define SIG_DCS    7      // VS1053 Data/command select pin (output)
+#define SIG_RESET 8 // VS1053 reset pin (unused!)
+#define SIG_CARDCS 9
+#define SIG_SDCD -1
+#define SIG_5VON -1
+#endif 
 
-#define BREAKOUT_SDCD 2
-#define BREAKOUT_5VON 5
-Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(BREAKOUT_RESET, BREAKOUT_CS, BREAKOUT_DCS, DREQ, CARDCS);
+//Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(BREAKOUT_RESET, BREAKOUT_CS, BREAKOUT_DCS, DREQ, CARDCS);
+//Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(SHIELD_RESET, SHIELD_CS, SHIELD_DCS, SHIELD_DREQ, SHIELD_CARDCS);
+Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(SIG_RESET, SIG_CS, SIG_DCS, SIG_DREQ, SIG_CARDCS);
 
 unsigned char TWIByteCounter=0;
 
@@ -228,6 +243,7 @@ ISR(TWI_vect)
 unsigned char secondCounter=0;
 unsigned int countdown=0;
 unsigned char repeatFlag=0;
+unsigned char sig_5von_counter=3;
 unsigned int TWI_counter=0;
 
 ISR(TIMER2_COMPA_vect){
@@ -246,6 +262,15 @@ ISR(TIMER2_COMPA_vect){
 	    TWI_counter=0;
 	    TWI_start_send(0x32,0x1306);
 	}
+  if(sig_5von_counter==0){
+    if(SIG_5VON>0){
+      pinMode(SIG_5VON,OUTPUT);
+      digitalWrite(SIG_5VON,LOW);
+    }
+  }else{
+      sig_5von_counter--;
+  }
+ 
     }
 }
 
@@ -260,17 +285,21 @@ void setup() {
     TIMSK2|=0x02;
 
 
-    pinMode(CARDCS,OUTPUT);
+    /*pinMode(CARDCS,OUTPUT);
     digitalWrite(CARDCS,HIGH);
     pinMode(BREAKOUT_CS,OUTPUT);
-    digitalWrite(BREAKOUT_CS,HIGH);
+    digitalWrite(BREAKOUT_CS,HIGH);*/
 
+    pinMode(SIG_CS,OUTPUT);
+    digitalWrite(SIG_CS,HIGH);
+    pinMode(SIG_CARDCS,OUTPUT);
+    digitalWrite(SIG_CARDCS,HIGH);
+    
+ 
     TCCR0A&=~0xF0; //give D5 back stupid timer lib
-    pinMode(BREAKOUT_5VON,OUTPUT);
-    digitalWrite(BREAKOUT_5VON,LOW);
-
-
-    pinMode(BREAKOUT_SDCD,INPUT);
+    if(SIG_SDCD>0){
+      pinMode(SIG_SDCD,INPUT);
+    }
 
     Serial.begin(9600);
     Serial.print("Starting...");
@@ -282,8 +311,11 @@ void setup() {
     	Serial.println("VS1053 ok");
     	intState|=0x01;
     }
-    while(!SD.begin(CARDCS)){
+    /*while(!SD.begin(CARDCS)){
 	    musicPlayer.sineTest(0x44, 500);
+    }*/
+    while(!SD.begin(SIG_CARDCS)){
+      musicPlayer.sineTest(0x44, 500);
     }
     Serial.println("SD card ok");
     intState|=0x02;
@@ -327,7 +359,7 @@ unsigned char checkFileExists(char *c){
 	    return 1;
 	}
     }else{
-	SD.begin(CARDCS);
+	SD.begin(SIG_CARDCS);
 	if(SD.exists(c)){
 	    return 1;
 	}
@@ -440,7 +472,7 @@ void loop() {
 			musicPlayer.stopPlaying();
 			wdt_reset();delay(50);wdt_reset();
 		    }
-		    wdt_reset();SD.begin(CARDCS);
+		    wdt_reset();SD.begin(SIG_CARDCS);
 		    if(musicPlayer.startPlayingFile(fn)==0){ //file does not exist
 			fn[0]=0;
 			strcat(fn,"/alarm/default.mp3");
@@ -465,7 +497,7 @@ void loop() {
 			musicPlayer.stopPlaying();
 			wdt_reset();delay(50);wdt_reset();
 		    }
-		    wdt_reset();SD.begin(CARDCS);
+		    wdt_reset();SD.begin(SIG_CARDCS);
 		    if(musicPlayer.startPlayingFile(fn)==0){ //file does not exist
 			fn[0]=0;
 			strcat(fn,"/sched/default.mp3");
@@ -490,7 +522,7 @@ void loop() {
 			musicPlayer.stopPlaying();
 			wdt_reset();delay(50);wdt_reset();
 		    }
-		    wdt_reset();SD.begin(CARDCS);
+		    wdt_reset();SD.begin(SIG_CARDCS);
 		    if(musicPlayer.startPlayingFile(fn)==0){ //file does not exist
 			fn[0]=0;
 			strcat(fn,"/event/default.mp3");
@@ -515,7 +547,7 @@ void loop() {
 			musicPlayer.stopPlaying();
 			wdt_reset();delay(50);wdt_reset();
 		    }
-		    wdt_reset();SD.begin(CARDCS);
+		    wdt_reset();SD.begin(SIG_CARDCS);
 		    if(musicPlayer.startPlayingFile(fn)==0){ //file does not exist
 			fn[0]=0;
 			strcat(fn,"/amb/default.mp3");
